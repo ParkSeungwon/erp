@@ -11,18 +11,22 @@ public:
 
 protected:
 	Gtk::ScrolledWindow scroll_[3];
-	z::TreeView<int, string, string, string, string> herb_{"index", "한글", "한자", "性味", "효능"};
-	Gtk::Button add_{"추가"}, del_{"삭제"};
-	Gtk::HBox hb_, entry_box_, button_box_;
+	Gtk::Button add_{"추가"}, del_{"삭제"}, right_{"->"}, left_{"<-"},
+		add2_{"추가"}, del2_{"삭제"}, update_{"수정"};
+	Gtk::Separator separator_{Gtk::ORIENTATION_VERTICAL};
+	Gtk::HBox hb_, entry_box_, entry_box2_, button_box_, blank_[2], button_box2_;
 	Gtk::VBox vb_[4];
-	Gtk::Entry entry_[4];
-	z::TreeView<int, string, string, string, string> prescription_{"index", "처방", "", "", ""};
+	Gtk::Entry entry_[7], process_, entry2_[3];
+	Gtk::SpinButton dose_;
+	z::TreeView<int, string, string, string, string> herb_{"id", "약재", "한자", "性味", "효능"};
+	z::TreeView<int, string, string, float> recipe_{"id", "약재", "법제", "용량"};
+	z::TreeView<int, string, string, string> formular_{"id", "처방", "한자", "효과"};
 	SqlQuery sq_;
 
 private:
-	int selected_ = -1;
-	void load_herb_table();
-	void connect_event();
+	int selected_[3] = {-1, -1, -1};//herb, recipe, formular
+	void load_herb_table(), set_properties(), connect_event(), load_formular_table(),
+			 load_recipe_table(int id);
 };
 
 

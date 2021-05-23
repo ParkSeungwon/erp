@@ -3,11 +3,13 @@
 using namespace std;
 
 Window::Window() {
+	set_title("한방 처방집");
 	add(hb_);
-	for(int i=0; i<4; i++) hb_.pack_start(vb_[i]);
+	for(int i=0; i<3; i++) hb_.pack_start(vb_[i]);
+	hb_.pack_start(separator_);
+	hb_.pack_start(vb_[3]);
 	vb_[0].pack_start(scroll_[0]);
 	scroll_[0].add(herb_);
-	scroll_[0].set_size_request(200, 700);
 	vb_[0].pack_start(entry_box_, Gtk::PACK_SHRINK);
 	for(int i=0; i<3; i++) entry_box_.pack_start(entry_[i]);
 	vb_[0].pack_start(entry_[3], Gtk::PACK_SHRINK);
@@ -15,9 +17,35 @@ Window::Window() {
 	button_box_.pack_start(add_);
 	button_box_.pack_start(del_);
 
+	vb_[1].pack_start(blank_[0]);
+	vb_[1].pack_end(blank_[1]);
+	vb_[1].pack_start(right_, Gtk::PACK_SHRINK);
+	vb_[1].pack_start(left_, Gtk::PACK_SHRINK);
+
+	vb_[2].pack_start(scroll_[1]);
+	scroll_[1].add(recipe_);
+	vb_[2].pack_start(process_, Gtk::PACK_SHRINK);
+	vb_[2].pack_start(dose_, Gtk::PACK_SHRINK);
+	vb_[2].pack_start(update_, Gtk::PACK_SHRINK);
+	recipe_.push_back(1, "감초", "", 4.5);
+	recipe_.push_back(1, "감초", "", 3.5);
+
+	vb_[3].pack_start(scroll_[2]);
+	scroll_[2].add(formular_);
+	vb_[3].pack_start(entry_box2_, Gtk::PACK_SHRINK);
+	entry_box2_.pack_start(entry_[4], Gtk::PACK_SHRINK);
+	entry_box2_.pack_start(entry_[5], Gtk::PACK_SHRINK);
+	vb_[3].pack_start(entry_[6], Gtk::PACK_SHRINK);
+	vb_[3].pack_start(button_box2_, Gtk::PACK_SHRINK);
+	button_box2_.pack_start(add2_);
+	button_box2_.pack_start(del2_);
+
+	//formular_.push_back(1, "궁귀조혈음", "궁귀조혈음", "산후병");
 	sq_.connect("localhost", "zeta", "cockcodk0", "herb");
 	load_herb_table();
-	set_size_request(500,200);
+	load_formular_table();
+	//set_size_request(500,200);
+	set_properties();
 	show_all_children();
 	connect_event();
 }
@@ -29,27 +57,105 @@ void Window::load_herb_table()
 	herb_.clear();
 	for(auto row : sq_) herb_.push_back(row["id"].asInt(), row["korean"].asString(),
 			row["chinese"].asString(), row["taste"].asString(), row["effect"].asString());
+	selected_[0] = -1;
+}
+
+void Window::load_formular_table()
+{
+	sq_.reconnect();
+	sq_.select("formular");
+	formular_.clear();
+	for(auto row : sq_) formular_.push_back(row["id"].asInt(),
+			row["korean"].asString(), row["chinese"].asString(), row["effect"].asString());
+	selected_[2] = -1;
+}
+
+void Window::set_properties()
+{
+	const char *text[7] = {"한글", "한자", "성미", "효능", "처방", "한자", "효과"};
+	for(int i=0; i<7; i++) entry_[i].set_placeholder_text(text[i]);
+	process_.set_placeholder_text("수치, 법제");
+	for(int i=0; i<3; i++) scroll_[i].set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
+	scroll_[0].set_size_request(-1, 700);
+	dose_.set_range(0, 99);
+	dose_.set_increments(0.25, 1);
+}
+
+void Window::load_recipe_table(int id)
+{
+	sq_.reconnect();
+	string q = "select * from (select * from recipe where pres = ";
+	sq_.query(q + to_string(id) + ") as tmp inner join herb on tmp.herb = herb.id;");
+	sq_.fetch();
+	recipe_.clear();
+	for(auto row : sq_) recipe_.push_back(row["id"].asInt(), row["korean"].asString(),
+			row["process"].asString(), row["weight"].asFloat());
+	selected_[1] = -1;
 }
 
 void Window::connect_event()
 {
 	herb_.add_event([&]() {
 			auto v = herb_.get_selected();
-			if(!v.empty()) selected_ = v[0];
-			else selected_ = -1;
+			if(!v.empty()) selected_[0] = v[0];
+			else selected_[0] = -1;
+	});
+	formular_.add_event([&]() {
+			auto v = formular_.get_selected();
+			if(!v.empty()) {
+				selected_[2] = v[0];
+				auto tup = formular_.get_row(v[0]);
+				load_recipe_table(get<0>(tup));
+			} else selected_[2] = -1;
+	});
+	recipe_.add_event([&]() {
+			auto v = recipe_.get_selected();
+			if(v.empty()) selected_[1] = v[0];
+			else selected_[1] = -1;
 	});
 	add_.signal_clicked().connect([&]() {
 		string s[4];
 		for(int i=0; i<4; i++) s[i] = entry_[i].get_text();
+		sq_.reconnect();
 		sq_.select("herb", "limit 1");
 		sq_.insert(AutoIncrement{}, s[0], s[1], s[2], s[3]);
 		load_herb_table();
 	});
+	add2_.signal_clicked().connect([&]() {
+			string s[3];
+			for(int i=0; i<3; i++) s[i] = entry_[4 + i].get_text();
+			sq_.reconnect();
+			sq_.select("formular", "limit 1");
+			sq_.insert(AutoIncrement{}, s[0], s[1], s[2]);
+			load_formular_table();
+	});
 	del_.signal_clicked().connect([&]() {
-		if(selected_ == -1) return;
-		auto tup = herb_.get_row(selected_);
+		if(selected_[0] == -1) return;
+		auto tup = herb_.get_row(selected_[0]);
 		sq_.reconnect();
 		sq_.query("delete from herb where id = " + to_string(get<0>(tup)) + ';');
 		load_herb_table();
+	});
+	del2_.signal_clicked().connect([&]() {
+			if(selected_[2] == -1) return;
+			auto tup = formular_.get_row(selected_[2]);
+			sq_.reconnect();
+			sq_.select("formular", "limit 1");
+			sq_.query("delete from formular where id = " + to_string(get<0>(tup)) + ';');
+			load_formular_table();
+	});
+	right_.signal_clicked().connect([&]() {
+			if(selected_[0] == -1 || selected_[2] == -1) return;
+			auto tup = herb_.get_row(selected_[0]);
+			int herb = get<0>(tup);
+			auto tup2 = formular_.get_row(selected_[2]);
+			int pres = get<0>(tup2);
+			sq_.reconnect();
+			sq_.select("recipe", "limit 1");
+			sq_.insert(pres, herb, "", 4);
+			load_recipe_table(pres);
+	});
+	left_.signal_clicked().connect([&]() {
+			if(selected_[1] == -1) return;
 	});
 }
