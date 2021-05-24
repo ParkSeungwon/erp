@@ -26,7 +26,7 @@ protected:
 private:
 	int selected_[3] = {-1, -1, -1};//herb, recipe, formular
 	void load_herb_table(), set_properties(), connect_event(), load_formular_table(),
-			 load_recipe_table(int id);
+			 load_recipe_table();
 };
 
 

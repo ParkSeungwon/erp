@@ -27,8 +27,6 @@ Window::Window() {
 	vb_[2].pack_start(process_, Gtk::PACK_SHRINK);
 	vb_[2].pack_start(dose_, Gtk::PACK_SHRINK);
 	vb_[2].pack_start(update_, Gtk::PACK_SHRINK);
-	recipe_.push_back(1, "감초", "", 4.5);
-	recipe_.push_back(1, "감초", "", 3.5);
 
 	vb_[3].pack_start(scroll_[2]);
 	scroll_[2].add(formular_);
@@ -77,15 +75,17 @@ void Window::set_properties()
 	process_.set_placeholder_text("수치, 법제");
 	for(int i=0; i<3; i++) scroll_[i].set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
 	scroll_[0].set_size_request(-1, 700);
+	dose_.set_digits(2);
 	dose_.set_range(0, 99);
 	dose_.set_increments(0.25, 1);
 }
 
-void Window::load_recipe_table(int id)
+void Window::load_recipe_table()
 {
+	if(selected_[2] == -1) return;
 	sq_.reconnect();
 	string q = "select * from (select * from recipe where pres = ";
-	sq_.query(q + to_string(id) + ") as tmp inner join herb on tmp.herb = herb.id;");
+	sq_.query(q + to_string(selected_[2]) + ") as tmp inner join herb on tmp.herb = herb.id;");
 	sq_.fetch();
 	recipe_.clear();
 	for(auto row : sq_) recipe_.push_back(row["id"].asInt(), row["korean"].asString(),
@@ -96,22 +96,28 @@ void Window::load_recipe_table(int id)
 void Window::connect_event()
 {
 	herb_.add_event([&]() {
-			auto v = herb_.get_selected();
-			if(!v.empty()) selected_[0] = v[0];
-			else selected_[0] = -1;
+			if(auto v = herb_.get_selected(); !v.empty()) {
+				auto tup = herb_.get_row(v[0]);
+				selected_[0] = get<0>(tup);
+			} else selected_[0] = -1;
 	});
 	formular_.add_event([&]() {
 			auto v = formular_.get_selected();
 			if(!v.empty()) {
-				selected_[2] = v[0];
 				auto tup = formular_.get_row(v[0]);
-				load_recipe_table(get<0>(tup));
+				selected_[2] = get<0>(tup);
+				load_recipe_table();
 			} else selected_[2] = -1;
 	});
 	recipe_.add_event([&]() {
 			auto v = recipe_.get_selected();
-			if(v.empty()) selected_[1] = v[0];
-			else selected_[1] = -1;
+			if(v.empty()) selected_[1] = -1;
+			else {
+				auto tup = recipe_.get_row(v[0]);
+				selected_[1] = get<0>(tup);
+				process_.set_text(get<2>(tup));
+				dose_.set_value(get<3>(tup));
+			}
 	});
 	add_.signal_clicked().connect([&]() {
 		string s[4];
@@ -128,34 +134,46 @@ void Window::connect_event()
 			sq_.select("formular", "limit 1");
 			sq_.insert(AutoIncrement{}, s[0], s[1], s[2]);
 			load_formular_table();
+			recipe_.clear();
 	});
 	del_.signal_clicked().connect([&]() {
 		if(selected_[0] == -1) return;
-		auto tup = herb_.get_row(selected_[0]);
 		sq_.reconnect();
-		sq_.query("delete from herb where id = " + to_string(get<0>(tup)) + ';');
+		sq_.query("delete from herb where id = " + to_string(selected_[0]) + ';');
 		load_herb_table();
 	});
 	del2_.signal_clicked().connect([&]() {
 			if(selected_[2] == -1) return;
-			auto tup = formular_.get_row(selected_[2]);
 			sq_.reconnect();
 			sq_.select("formular", "limit 1");
-			sq_.query("delete from formular where id = " + to_string(get<0>(tup)) + ';');
+			sq_.query("delete from formular where id = " + to_string(selected_[2]) + ';');
+			//sq_.query("delete from recipe where pres = " + to_string(get<0>(tup)) + ';');
 			load_formular_table();
+			recipe_.clear();
 	});
 	right_.signal_clicked().connect([&]() {
 			if(selected_[0] == -1 || selected_[2] == -1) return;
-			auto tup = herb_.get_row(selected_[0]);
-			int herb = get<0>(tup);
-			auto tup2 = formular_.get_row(selected_[2]);
-			int pres = get<0>(tup2);
 			sq_.reconnect();
 			sq_.select("recipe", "limit 1");
-			sq_.insert(pres, herb, "", 4);
-			load_recipe_table(pres);
+			sq_.insert(selected_[2], selected_[0], "", 4);
+			load_recipe_table();
 	});
 	left_.signal_clicked().connect([&]() {
-			if(selected_[1] == -1) return;
+			if(selected_[1] == -1 || selected_[2] == -1) return;
+			sq_.reconnect();
+			sq_.select("recipe", "limit 1");
+			sq_.query("delete from recipe where pres = " + to_string(selected_[2])
+					+ " and herb = " + to_string(selected_[1]) + ';');
+			load_recipe_table();
+	});
+	update_.signal_clicked().connect([&]() {
+			if(selected_[1] == -1 || selected_[2] == -1) return;
+			string s = process_.get_text();
+			float dose = dose_.get_value();
+			sq_.reconnect();
+			sq_.query("update recipe set process = '" + s + "', weight = "
+					+ to_string(dose) + "where pres = " + to_string(selected_[2])
+					+ " and herb = " + to_string(selected_[1]) + ';');
+			load_recipe_table();
 	});
 }
