@@ -79,9 +79,9 @@ void Window::set_properties()
 	dose_.set_digits(2);
 	dose_.set_range(0, 99);
 	dose_.set_increments(0.25, 1);
-	herb_.search_column<1>();
-	recipe_.search_column<1>();
-	formular_.search_column<1>();
+	herb_.search_column(2);
+	recipe_.search_column(2);
+	formular_.search_column(2);
 }
 
 void Window::load_recipe_table(int n)

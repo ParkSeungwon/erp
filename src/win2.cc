@@ -71,7 +71,7 @@ void Window2::set_properties()
 	spin_[0].set_digits(2);
 	spin_[1].set_increments(1, 10);
 	spin_[1].set_range(0, 99);
-	herb_.search_column<1>();
+	herb_.search_column(2);
 }
 
 void Window2::load_herb_table()

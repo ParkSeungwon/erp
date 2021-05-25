@@ -3,6 +3,7 @@
 #include<cassert>
 #include<gtkmm.h>
 #include<iostream>
+#include<type_traits>
 
 namespace z {
 
@@ -85,8 +86,8 @@ public:
 		get_selection()->signal_changed().connect(func);
 		//signal_row_activated().connect(func);
 	}
-	template<int N> void search_column() {
-		set_search_column(get<N>(column_.cols_));
+	void search_column(int n) {
+		set_search_column(n);
 		//set_enable_search();
 	}
 protected:
@@ -126,9 +127,10 @@ public:
 	}
 
 private:
-	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {
-		this->append_column(s, get<N>(this->column_.cols_));//editable contents
-		this->get_column(N)->set_sort_column(get<N>(this->column_.cols_));//sortable when click the header
+	template<int N, class... Strings> void append_col(std::string s, Strings... args) {
+		const auto &nth_column = get<N>(this->column_.cols_);
+		this->append_column(s, nth_column);//editable contents
+		this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
 		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
 };
@@ -138,15 +140,15 @@ template<int E, class... Args> class EditableTreeView : public TreeViewBase<Args
 public:
 	template<class... Strings> EditableTreeView(Strings... col_name)
 		requires (sizeof...(Strings) == sizeof...(Args)) {
-		append_col<0>(col_name...);
-		this->set_model(this->ref_tree_model_);
+			append_col<0>(col_name...);
+			this->set_model(this->ref_tree_model_);
 	}
 private:
-	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {//override
-		if constexpr((1 << N) & E) {
-			std::cout << N << "editable column added" << std::endl;
-			this->append_column_editable(s, get<N>(this->column_.cols_));
-		} else this->append_column(s, get<N>(this->column_.cols_));
+	template<int N, class... Strings> void append_col(std::string s, Strings... args) {//override
+		const auto &nth_column = get<N>(this->column_.cols_);
+		if constexpr((1 << N) & E) this->append_column_editable(s, nth_column);
+		else this->append_column(s, nth_column);
+		this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
 		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
 };

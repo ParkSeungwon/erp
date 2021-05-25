@@ -18,7 +18,7 @@ protected:
 	Gtk::Entry entry_[7], process_, entry2_[3];
 	Gtk::SpinButton dose_;
 	z::TreeView<int, string, string, string, string> herb_{"id", "약재", "한자", "性味", "효능"};
-	z::EditableTreeView<12, int, string, string, float> recipe_{"id", "약재", "법제", "용량"};
+	z::EditableTreeView<12, int, string, string, float> recipe_{"id", "약재", "법제", "용량"};//12 = 1100b
 	z::TreeView<int, string, string, string> formular_{"id", "처방", "한자", "효과"};
 	SqlQuery sq_;
 
