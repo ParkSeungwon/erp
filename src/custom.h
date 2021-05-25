@@ -2,6 +2,7 @@
 #include<sstream>
 #include<cassert>
 #include<gtkmm.h>
+#include<iostream>
 
 namespace z {
 
@@ -87,6 +88,11 @@ public:
 	}
 	template<class T> void add_event(T func) {
 		get_selection()->signal_changed().connect(func);
+		//signal_row_activated().connect(func);
+	}
+	template<int N> void search_column() {
+		set_search_column(get<N>(column_.cols_));
+		//set_enable_search();
 	}
 protected:
 	struct ModelColumns : Gtk::TreeModel::ColumnRecord {
@@ -117,6 +123,21 @@ private:
 	template<int N> void row_recur(std::tuple<Args...> &r, const auto &row) {
 		std::get<N>(r) = row[std::get<N>(column_.cols_)];
 		if constexpr(N+1 < sizeof...(Args)) row_recur<N+1>(r, row);
+	}
+};
+
+template<int E, class... Args> class EditableTreeView : public TreeView<Args...>
+{//E : byte operation -> editable column 
+public:
+	template<class... Strings> EditableTreeView(Strings... col_name) : TreeView<Args...>(col_name...)
+	{ }
+private:
+	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {//override
+		if constexpr((1 << N) & E) {
+			std::cout << N << "editable column added" << std::endl;
+			append_column_editable(s, get<N>(this->column_.cols_));
+		} else append_column(s, get<N>(this->column_.cols_));
+		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
 };
 

@@ -1,4 +1,3 @@
-#include<gtkmm.h>
 #include"win.h"
 using namespace std;
 
@@ -10,9 +9,10 @@ Window::Window() {
 	hb_.pack_start(vb_[3]);
 	vb_[0].pack_start(scroll_[0]);
 	scroll_[0].add(herb_);
-	vb_[0].pack_start(entry_box_, Gtk::PACK_SHRINK);
-	for(int i=0; i<3; i++) entry_box_.pack_start(entry_[i]);
-	vb_[0].pack_start(entry_[3], Gtk::PACK_SHRINK);
+	vb_[0].pack_start(entry_box_[0], Gtk::PACK_SHRINK);
+	vb_[0].pack_start(entry_box_[1], Gtk::PACK_SHRINK);
+	for(int i=0; i<2; i++) entry_box_[0].pack_start(entry_[i]);
+	for(int i=2; i<4; i++) entry_box_[1].pack_start(entry_[i]);
 	vb_[0].pack_start(button_box_, Gtk::PACK_SHRINK);
 	button_box_.pack_start(add_);
 	button_box_.pack_start(del_);
@@ -30,9 +30,9 @@ Window::Window() {
 
 	vb_[3].pack_start(scroll_[2]);
 	scroll_[2].add(formular_);
-	vb_[3].pack_start(entry_box2_, Gtk::PACK_SHRINK);
-	entry_box2_.pack_start(entry_[4], Gtk::PACK_SHRINK);
-	entry_box2_.pack_start(entry_[5], Gtk::PACK_SHRINK);
+	vb_[3].pack_start(entry_box_[2], Gtk::PACK_SHRINK);
+	entry_box_[2].pack_start(entry_[4], Gtk::PACK_SHRINK);
+	entry_box_[2].pack_start(entry_[5], Gtk::PACK_SHRINK);
 	vb_[3].pack_start(entry_[6], Gtk::PACK_SHRINK);
 	vb_[3].pack_start(button_box2_, Gtk::PACK_SHRINK);
 	button_box2_.pack_start(add2_);
@@ -60,6 +60,7 @@ void Window::load_herb_table()
 
 void Window::load_formular_table()
 {
+	cout << "load formular " << endl;
 	sq_.reconnect();
 	sq_.select("formular");
 	formular_.clear();
@@ -78,14 +79,17 @@ void Window::set_properties()
 	dose_.set_digits(2);
 	dose_.set_range(0, 99);
 	dose_.set_increments(0.25, 1);
+	herb_.search_column<1>();
+	recipe_.search_column<1>();
+	formular_.search_column<1>();
 }
 
-void Window::load_recipe_table()
+void Window::load_recipe_table(int n)
 {
-	if(selected_[2] == -1) return;
+	if(do_not_update_recipe_table_) return;
 	sq_.reconnect();
 	string q = "select * from (select * from recipe where pres = ";
-	sq_.query(q + to_string(selected_[2]) + ") as tmp inner join herb on tmp.herb = herb.id;");
+	sq_.query(q + to_string(n) + ") as tmp inner join herb on tmp.herb = herb.id;");
 	sq_.fetch();
 	recipe_.clear();
 	for(auto row : sq_) recipe_.push_back(row["id"].asInt(), row["korean"].asString(),
@@ -102,16 +106,15 @@ void Window::connect_event()
 			} else selected_[0] = -1;
 	});
 	formular_.add_event([&]() {
-			auto v = formular_.get_selected();
-			if(!v.empty()) {
+			cout << "formular select event" << endl;
+			if(auto v = formular_.get_selected(); !v.empty()) {
 				auto tup = formular_.get_row(v[0]);
 				selected_[2] = get<0>(tup);
-				load_recipe_table();
+				load_recipe_table(selected_[2]);
 			} else selected_[2] = -1;
 	});
 	recipe_.add_event([&]() {
-			auto v = recipe_.get_selected();
-			if(v.empty()) selected_[1] = -1;
+			if(auto v = recipe_.get_selected(); v.empty()) selected_[1] = -1;
 			else {
 				auto tup = recipe_.get_row(v[0]);
 				selected_[1] = get<0>(tup);
@@ -133,7 +136,9 @@ void Window::connect_event()
 			sq_.reconnect();
 			sq_.select("formular", "limit 1");
 			sq_.insert(AutoIncrement{}, s[0], s[1], s[2]);
+			do_not_update_recipe_table_ = true;
 			load_formular_table();
+			do_not_update_recipe_table_ = false;
 			recipe_.clear();
 	});
 	del_.signal_clicked().connect([&]() {
@@ -148,7 +153,9 @@ void Window::connect_event()
 			sq_.select("formular", "limit 1");
 			sq_.query("delete from formular where id = " + to_string(selected_[2]) + ';');
 			//sq_.query("delete from recipe where pres = " + to_string(get<0>(tup)) + ';');
+			do_not_update_recipe_table_ = true;
 			load_formular_table();
+			do_not_update_recipe_table_ = false;
 			recipe_.clear();
 	});
 	right_.signal_clicked().connect([&]() {
@@ -156,7 +163,7 @@ void Window::connect_event()
 			sq_.reconnect();
 			sq_.select("recipe", "limit 1");
 			sq_.insert(selected_[2], selected_[0], "", 4);
-			load_recipe_table();
+			load_recipe_table(selected_[2]);
 	});
 	left_.signal_clicked().connect([&]() {
 			if(selected_[1] == -1 || selected_[2] == -1) return;
@@ -164,7 +171,7 @@ void Window::connect_event()
 			sq_.select("recipe", "limit 1");
 			sq_.query("delete from recipe where pres = " + to_string(selected_[2])
 					+ " and herb = " + to_string(selected_[1]) + ';');
-			load_recipe_table();
+			load_recipe_table(selected_[2]);
 	});
 	update_.signal_clicked().connect([&]() {
 			if(selected_[1] == -1 || selected_[2] == -1) return;
@@ -174,6 +181,6 @@ void Window::connect_event()
 			sq_.query("update recipe set process = '" + s + "', weight = "
 					+ to_string(dose) + "where pres = " + to_string(selected_[2])
 					+ " and herb = " + to_string(selected_[1]) + ';');
-			load_recipe_table();
+			load_recipe_table(selected_[2]);
 	});
 }
