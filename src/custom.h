@@ -45,14 +45,9 @@ public:
 
 //Glib::RefPtr<Gdk::Pixbuf> matrix2pixbuf(cv::Mat &mat, bool convertRGB = true);
 
-template<class... Args> class TreeView : public Gtk::TreeView
+template<class... Args> class TreeViewBase : public Gtk::TreeView
 {
 public:
-	template<class... Strings> TreeView(Strings... col_name) 
-		requires (sizeof...(Strings) == sizeof...(Args)) {
-			append_col<0>(col_name...);
-			set_model(ref_tree_model_);
-	}
 	void push_back(Args... args) {
 		static int k = 0;
 		auto row = *ref_tree_model_->append();
@@ -111,11 +106,6 @@ protected:
 	Glib::RefPtr<Gtk::TreeSelection> ref_sel_ = get_selection();
 	bool multiple_ = false;
 private:
-	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {
-		append_column(s, get<N>(column_.cols_));//editable contents
-		get_column(N)->set_sort_column(get<N>(column_.cols_));//sortable when click the header
-		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
-	}
 	template<int N, class T, class... As> void insert_row(Gtk::TreeModel::Row &row, T a, As... as) {
 		row[get<N>(column_.cols_)] = a;
 		if constexpr(N+1 < sizeof...(Args)) insert_row<N+1>(row, as...);
@@ -126,17 +116,37 @@ private:
 	}
 };
 
-template<int E, class... Args> class EditableTreeView : public TreeView<Args...>
+template<class... Args> class TreeView : public TreeViewBase<Args...>
+{
+public:
+	template<class... Strings> TreeView(Strings... col_name) 
+		requires (sizeof...(Strings) == sizeof...(Args)) {
+			append_col<0>(col_name...);
+			this->set_model(this->ref_tree_model_);
+	}
+
+private:
+	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {
+		this->append_column(s, get<N>(this->column_.cols_));//editable contents
+		this->get_column(N)->set_sort_column(get<N>(this->column_.cols_));//sortable when click the header
+		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
+	}
+};
+
+template<int E, class... Args> class EditableTreeView : public TreeViewBase<Args...>
 {//E : byte operation -> editable column 
 public:
-	template<class... Strings> EditableTreeView(Strings... col_name) : TreeView<Args...>(col_name...)
-	{ }
+	template<class... Strings> EditableTreeView(Strings... col_name)
+		requires (sizeof...(Strings) == sizeof...(Args)) {
+		append_col<0>(col_name...);
+		this->set_model(this->ref_tree_model_);
+	}
 private:
 	template<int N, class... Strings> void append_col(std::string s, Strings ... args) {//override
 		if constexpr((1 << N) & E) {
 			std::cout << N << "editable column added" << std::endl;
-			append_column_editable(s, get<N>(this->column_.cols_));
-		} else append_column(s, get<N>(this->column_.cols_));
+			this->append_column_editable(s, get<N>(this->column_.cols_));
+		} else this->append_column(s, get<N>(this->column_.cols_));
 		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
 };
