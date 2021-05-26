@@ -122,7 +122,7 @@ void Window::connect_event()
 		string s[4];
 		for(int i=0; i<4; i++) s[i] = entry_[i].get_text();
 		sq_.reconnect();
-		sq_.table("herb");
+		sq_.select("herb", "limit 1");
 		sq_.insert(AutoIncrement{}, s[0], s[1], s[2], s[3]);
 		load_herb_table();
 	});
@@ -130,7 +130,7 @@ void Window::connect_event()
 			string s[3];
 			for(int i=0; i<3; i++) s[i] = entry_[4 + i].get_text();
 			sq_.reconnect();
-			sq_.table("formular");
+			sq_.select("formular", "limit 1");
 			sq_.insert(AutoIncrement{}, s[0], s[1], s[2]);
 			do_not_update_recipe_table_ = true;
 			load_formular_table();
@@ -160,7 +160,6 @@ void Window::connect_event()
 				recipe_.push_back(selected_[0], get<1>(herb_selected_row_), "", 4);
 	});
 	left_.signal_clicked().connect([&]() {
-			if(selected_[1] == -1 || selected_[2] == -1) return;
 			recipe_.remove_selected_row();
 	});
 	update_.signal_clicked().connect([&]() {

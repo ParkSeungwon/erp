@@ -137,8 +137,8 @@ template<class... Args> class TreeView : public TreeViewBase<Args...>
 public:
 	template<class... Strings> TreeView(Strings... col_name) 
 		requires (sizeof...(Strings) == sizeof...(Args)) {
-			append_col<0>(col_name...);
 			this->set_model(this->ref_tree_model_);
+			append_col<0>(col_name...);
 	}
 
 private:
@@ -155,8 +155,8 @@ template<int E, int Num, class... Args> class EditableTreeView : public TreeView
 public:
 	template<class... Strings> EditableTreeView(Strings... col_name)
 		requires (sizeof...(Strings) >= sizeof...(Args)) {
-			append_col<0>(col_name...);
 			this->set_model(this->ref_tree_model_);
+			append_col<0>(col_name...);
 	}
 private:
 	template<int N, class... Strings> void append_col(std::string s, std::string t, Strings... args) {

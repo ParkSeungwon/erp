@@ -14,7 +14,6 @@ public:
 	SqlQuery() = default;
 	SqlQuery(const SqlQuery& r);
 	bool query(std::string q);
-	void table(std::string name);
 	int fetch(int n = -1);
 	int select(std::string table, std::string where = "");
 	bool insert_nth_row(int n);

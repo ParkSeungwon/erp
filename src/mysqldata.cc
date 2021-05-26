@@ -75,9 +75,6 @@ bool SqlQuery::insert(vector<string> v)
 	return myQuery(q);
 }
 
-void SqlQuery::table(string s) {
-	table_name = s;
-}
 bool SqlQuery::insert_nth_row(int n)
 {//seekp rewind, insert the data of sq[n]
 	stringstream ss; ss << "insert into " << table_name << " (";
