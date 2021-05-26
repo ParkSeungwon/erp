@@ -135,21 +135,34 @@ private:
 	}
 };
 
-template<int E, class... Args> class EditableTreeView : public TreeViewBase<Args...>
-{//E : byte operation -> editable column 
+template<int E, int Num, class... Args> class EditableTreeView : public TreeViewBase<Args...>
+{//E : byte operation -> editable column, Num : byte operation -> numeric column 
 public:
 	template<class... Strings> EditableTreeView(Strings... col_name)
-		requires (sizeof...(Strings) == sizeof...(Args)) {
+		requires (sizeof...(Strings) >= sizeof...(Args)) {
 			append_col<0>(col_name...);
 			this->set_model(this->ref_tree_model_);
 	}
 private:
-	template<int N, class... Strings> void append_col(std::string s, Strings... args) {//override
+	template<int N, class... Strings> void append_col(std::string s, std::string t, Strings... args) {//override
+		const auto &nth_column = get<N>(this->column_.cols_);
+		if constexpr((1 << N) & Num) {
+			if constexpr((1 << N) & E) this->append_column_numeric_editable(s, nth_column, t);
+			else this->append_column_numeric(s, nth_column, t);
+			this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
+			if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
+		} else {
+			if constexpr((1 << N) & E) this->append_column_editable(s, nth_column);
+			else this->append_column(s, nth_column);
+			this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
+			append_col<N+1>(t, args...);
+		}
+	}
+	template<int N> void append_col(std::string s) {
 		const auto &nth_column = get<N>(this->column_.cols_);
 		if constexpr((1 << N) & E) this->append_column_editable(s, nth_column);
 		else this->append_column(s, nth_column);
 		this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
-		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
 };
 

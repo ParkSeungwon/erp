@@ -15,10 +15,9 @@ protected:
 	Gtk::Separator separator_{Gtk::ORIENTATION_VERTICAL};
 	Gtk::HBox hb_, entry_box_[3], button_box_, blank_[2], button_box2_;
 	Gtk::VBox vb_[4];
-	Gtk::Entry entry_[7], process_, entry2_[3];
-	Gtk::SpinButton dose_;
+	Gtk::Entry entry_[7], entry2_[3];
 	z::TreeView<int, string, string, string, string> herb_{"id", "약재", "한자", "性味", "효능"};
-	z::EditableTreeView<12, int, string, string, float> recipe_{"id", "약재", "법제", "용량"};//12 = 1100b
+	z::EditableTreeView<12, 8, int, string, string, float> recipe_{"id", "약재", "법제", "용량", "%.2f"};//12 = 1100b
 	z::TreeView<int, string, string, string> formular_{"id", "처방", "한자", "효과"};
 	SqlQuery sq_;
 

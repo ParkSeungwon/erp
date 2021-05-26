@@ -24,8 +24,6 @@ Window::Window() {
 
 	vb_[2].pack_start(scroll_[1]);
 	scroll_[1].add(recipe_);
-	vb_[2].pack_start(process_, Gtk::PACK_SHRINK);
-	vb_[2].pack_start(dose_, Gtk::PACK_SHRINK);
 	vb_[2].pack_start(update_, Gtk::PACK_SHRINK);
 
 	vb_[3].pack_start(scroll_[2]);
@@ -73,12 +71,8 @@ void Window::set_properties()
 {
 	const char *text[7] = {"한글", "한자", "성미", "효능", "처방", "한자", "효과"};
 	for(int i=0; i<7; i++) entry_[i].set_placeholder_text(text[i]);
-	process_.set_placeholder_text("수치, 법제");
 	for(int i=0; i<3; i++) scroll_[i].set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
 	scroll_[0].set_size_request(-1, 700);
-	dose_.set_digits(2);
-	dose_.set_range(0, 99);
-	dose_.set_increments(0.25, 1);
 	herb_.search_column(2);
 	recipe_.search_column(2);
 	formular_.search_column(2);
@@ -112,15 +106,6 @@ void Window::connect_event()
 				selected_[2] = get<0>(tup);
 				load_recipe_table(selected_[2]);
 			} else selected_[2] = -1;
-	});
-	recipe_.add_event([&]() {
-			if(auto v = recipe_.get_selected(); v.empty()) selected_[1] = -1;
-			else {
-				auto tup = recipe_.get_row(v[0]);
-				selected_[1] = get<0>(tup);
-				process_.set_text(get<2>(tup));
-				dose_.set_value(get<3>(tup));
-			}
 	});
 	add_.signal_clicked().connect([&]() {
 		string s[4];
@@ -175,12 +160,7 @@ void Window::connect_event()
 	});
 	update_.signal_clicked().connect([&]() {
 			if(selected_[1] == -1 || selected_[2] == -1) return;
-			string s = process_.get_text();
-			float dose = dose_.get_value();
 			sq_.reconnect();
-			sq_.query("update recipe set process = '" + s + "', weight = "
-					+ to_string(dose) + "where pres = " + to_string(selected_[2])
-					+ " and herb = " + to_string(selected_[1]) + ';');
 			load_recipe_table(selected_[2]);
 	});
 }

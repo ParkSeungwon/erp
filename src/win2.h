@@ -24,7 +24,7 @@ protected:
 	Gtk::SpinButton spin_[2];
 	z::TreeView<int, string, int, string> patient_{"id", "이름", "생년월일", "TEL"};//710729
 	z::TreeView<int, int> date_{"id", "날짜"};//202105221305
-	z::EditableTreeView<12, int, string, string, float> prescription_{"id", "약재", "법제", "용량"};
+	z::EditableTreeView<12, 8, int, string, string, float> prescription_{"id", "약재", "법제", "용량", "%.2f"};
 	z::TreeView<int, string, string, string, string> herb_{"id", "약재", "한자", "성미", "효능"};
 	Gtk::CheckButton korean_{"한글"}, multiply_{"약재 분량 곱하기"};
 	SqlQuery sq_;
