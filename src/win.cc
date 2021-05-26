@@ -48,6 +48,7 @@ Window::Window() {
 
 void Window::load_herb_table()
 {
+	cout << "load herb table" << endl;
 	sq_.reconnect();//when timeout connection lost
 	sq_.select("herb");
 	herb_.clear();
@@ -80,6 +81,7 @@ void Window::set_properties()
 
 void Window::load_recipe_table(int n)
 {
+	cout << "load recipe table" << endl;
 	if(do_not_update_recipe_table_) return;
 	sq_.reconnect();
 	string q = "select * from (select * from recipe where pres = ";
@@ -94,24 +96,33 @@ void Window::load_recipe_table(int n)
 void Window::connect_event()
 {
 	herb_.add_event([&]() {
+			cout << "herb event" << endl;
 			if(auto v = herb_.get_selected(); !v.empty()) {
-				auto tup = herb_.get_row(v[0]);
-				selected_[0] = get<0>(tup);
-			} else selected_[0] = -1;
+				herb_selected_row_ = herb_.get_row(v[0]);
+				selected_[0] = get<0>(herb_selected_row_);
+				selected_id_[0] = v[0];
+			} else {
+				selected_[0] = -1;
+				selected_id_[0] = -1;
+			}
 	});
 	formular_.add_event([&]() {
 			cout << "formular select event" << endl;
 			if(auto v = formular_.get_selected(); !v.empty()) {
-				auto tup = formular_.get_row(v[0]);
-				selected_[2] = get<0>(tup);
+				formular_selected_row_ = formular_.get_row(v[0]);
+				selected_[2] = get<0>(formular_selected_row_);
+				selected_id_[2] = v[0];
 				load_recipe_table(selected_[2]);
-			} else selected_[2] = -1;
+			} else {
+				selected_[2] = -1;
+				selected_id_[2] = -1;
+			}
 	});
 	add_.signal_clicked().connect([&]() {
 		string s[4];
 		for(int i=0; i<4; i++) s[i] = entry_[i].get_text();
 		sq_.reconnect();
-		sq_.select("herb", "limit 1");
+		sq_.table("herb");
 		sq_.insert(AutoIncrement{}, s[0], s[1], s[2], s[3]);
 		load_herb_table();
 	});
@@ -119,7 +130,7 @@ void Window::connect_event()
 			string s[3];
 			for(int i=0; i<3; i++) s[i] = entry_[4 + i].get_text();
 			sq_.reconnect();
-			sq_.select("formular", "limit 1");
+			sq_.table("formular");
 			sq_.insert(AutoIncrement{}, s[0], s[1], s[2]);
 			do_not_update_recipe_table_ = true;
 			load_formular_table();
@@ -135,7 +146,6 @@ void Window::connect_event()
 	del2_.signal_clicked().connect([&]() {
 			if(selected_[2] == -1) return;
 			sq_.reconnect();
-			sq_.select("formular", "limit 1");
 			sq_.query("delete from formular where id = " + to_string(selected_[2]) + ';');
 			//sq_.query("delete from recipe where pres = " + to_string(get<0>(tup)) + ';');
 			do_not_update_recipe_table_ = true;
@@ -145,22 +155,22 @@ void Window::connect_event()
 	});
 	right_.signal_clicked().connect([&]() {
 			if(selected_[0] == -1 || selected_[2] == -1) return;
-			sq_.reconnect();
-			sq_.select("recipe", "limit 1");
-			sq_.insert(selected_[2], selected_[0], "", 4);
-			load_recipe_table(selected_[2]);
+			auto v = recipe_.get_nth_column<0>();
+			if(std::find(v.begin(), v.end(), selected_[0]) == v.end()) 
+				recipe_.push_back(selected_[0], get<1>(herb_selected_row_), "", 4);
 	});
 	left_.signal_clicked().connect([&]() {
 			if(selected_[1] == -1 || selected_[2] == -1) return;
-			sq_.reconnect();
-			sq_.select("recipe", "limit 1");
-			sq_.query("delete from recipe where pres = " + to_string(selected_[2])
-					+ " and herb = " + to_string(selected_[1]) + ';');
-			load_recipe_table(selected_[2]);
+			recipe_.remove_selected_row();
 	});
 	update_.signal_clicked().connect([&]() {
-			if(selected_[1] == -1 || selected_[2] == -1) return;
+			if(selected_[2] == -1) return;
 			sq_.reconnect();
-			load_recipe_table(selected_[2]);
+			sq_.query("delete from recipe where pres = " + to_string(selected_[2]) + ';');
+			sq_.select("recipe", "limit 1");
+			for(int n : recipe_.get_nth_column<-1>()) {
+				auto tup = recipe_.get_row(n);
+				sq_.insert(selected_[2], get<0>(tup), get<2>(tup), get<3>(tup));
+			}
 	});
 }

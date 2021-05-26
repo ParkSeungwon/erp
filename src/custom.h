@@ -69,11 +69,26 @@ public:
 		}
 		return v;
 	}
+	void remove_selected_row() {
+		if(auto it = ref_sel_->get_selected(); it) ref_tree_model_->erase(it);
+	}
 	std::tuple<Args...> get_row(int id) {
 		std::tuple<Args...> r;
 		for(auto row : ref_tree_model_->children()) 
 			if(row[column_.id_] == id) row_recur<0>(r, row);
 		return r;
+	}
+	template<int N> auto get_nth_column() {
+		if constexpr(N < 0) {//return vector of hidden id column
+			std::vector<int> v;
+			for(auto row : ref_tree_model_->children()) v.push_back(row[column_.id_]);
+			return v;
+		} else {//return nth column
+			using type = std::tuple_element<N, std::tuple<Args...>>::type;
+			std::vector<type> v;
+			for(auto row : ref_tree_model_->children()) v.push_back(row[get<N>(column_.cols_)]);
+			return v;
+		}
 	}
 	void multiple(bool tf = true) {
 		ref_sel_->set_mode(tf ? Gtk::SELECTION_MULTIPLE : Gtk::SELECTION_SINGLE);
@@ -129,7 +144,7 @@ public:
 private:
 	template<int N, class... Strings> void append_col(std::string s, Strings... args) {
 		const auto &nth_column = get<N>(this->column_.cols_);
-		this->append_column(s, nth_column);//editable contents
+		this->append_column_editable(s, nth_column);//editable contents
 		this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
 		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
@@ -144,7 +159,7 @@ public:
 			this->set_model(this->ref_tree_model_);
 	}
 private:
-	template<int N, class... Strings> void append_col(std::string s, std::string t, Strings... args) {//override
+	template<int N, class... Strings> void append_col(std::string s, std::string t, Strings... args) {
 		const auto &nth_column = get<N>(this->column_.cols_);
 		if constexpr((1 << N) & Num) {
 			if constexpr((1 << N) & E) this->append_column_numeric_editable(s, nth_column, t);

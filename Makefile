@@ -4,7 +4,7 @@ all :
 	incltouch.x
 	for i in `ls -d */`; do \
 		if [ $$i == "obj/" ]; then continue; fi; \
-		if [ -f $${i}/Makefile ]; then make -j4 -C $$i; fi;\
+		if [ -f $${i}/Makefile ]; then make -j8 -C $$i; fi;\
 	done
 	make -j4 -C obj/
 	./catch
