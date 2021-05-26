@@ -144,7 +144,7 @@ public:
 private:
 	template<int N, class... Strings> void append_col(std::string s, Strings... args) {
 		const auto &nth_column = get<N>(this->column_.cols_);
-		this->append_column_editable(s, nth_column);//editable contents
+		this->append_column(s, nth_column);//editable contents
 		this->get_column(N)->set_sort_column(nth_column);//sortable when click the header
 		if constexpr(N+1 < sizeof...(Args)) append_col<N+1>(args...);
 	}
