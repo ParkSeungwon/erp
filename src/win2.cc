@@ -61,6 +61,7 @@ Window2::Window2()
 	set_properties();
 	load_herb_table();
 	load_patient_table();
+	load_base_formular();
 	show_all_children();
 	connect_event();
 }
@@ -83,6 +84,7 @@ void Window2::set_properties()
 	dose_.set_range(0, 99);
 	herb_.search_column(2);
 	patient_.search_column(2);
+	base_.set_id_column(0);
 }
 
 void Window2::load_herb_table()
@@ -107,9 +109,93 @@ void Window2::connect_event()
 		sq_.insert(AutoIncrement{}, s[0], birthday, sex_.get_active() ? 1 : 0,//female 1
 				s[2], s[1], weight_.get_value(), height_.get_value());
 	});
-	patient_.add_event([&]() {
-			
+	add2_.signal_clicked().connect([&]() {
+		sq_.select("prescription", "limit 1");
+		//sq_.insert();
 	});
+	patient_.add_event([&]() {
+			auto v = patient_.get_selected();
+			if(v.empty()) {
+				selected_[0] = -1;
+				return;
+			}
+			auto tup = patient_.get_row(v[0]);
+			int id = get<0>(tup);
+			selected_[0] = id;
+			sq_.reconnect();
+			sq_.select("patient", "where id = " + to_string(id));
+			entry_[0].set_text(sq_[0]["name"].asString());
+			entry_[1].set_text(sq_[0]["tel"].asString());
+			entry_[2].set_text(sq_[0]["address"].asString());
+			sex_.set_active(sq_[0]["sex"].asInt());
+			int date = sq_[0]["birth"].asInt();
+			int year = date / 10000;
+			int month = (date % 10000) / 100 - 1;
+			int day = date % 100;
+			birth_.select_month(month, date / 10000);
+			birth_.select_day(day);
+			weight_.set_value(sq_[0]["weight"].asInt());
+			height_.set_value(sq_[0]["height"].asInt());
+
+			sq_.select("prescription", "where patient = " + to_string(id) + " order by date");
+			for(auto row : sq_) date_.push_back(sq_[0]["id"].asInt(), sq_[0]["date"].asInt());
+	});
+	date_.add_event([&]() {
+			auto v = date_.get_selected();
+			if(v.empty()) {
+				selected_[1] = -1;
+				return;
+			}
+			auto tup = date_.get_row(v[0]);
+			int id = get<0>(tup);
+			selected_[1] = id;
+			sq_.select("prescription", "where id = " + to_string(id));
+			symptom_.get_buffer()->set_text(sq_[0]["symptom"].asString());
+			dose_.set_value(sq_[0]["dose"].asInt());
+			auto it = std::find(base_formular_index_.begin(), base_formular_index_.end(), 
+					sq_[0]["base_formula"].asInt());
+			base_.set_active(it - base_formular_index_.begin());
+	});
+	base_.signal_changed().connect([&]() {
+			if(auto it = base_.get_active(); it) {
+				auto row = *it;
+				int id = row[column.id_];
+				sq_.reconnect();
+				string q = "select * from (select * from recipe where pres = ";
+				sq_.query(q + to_string(id) + ") as tmp inner join herb on tmp.herb = herb.id;");
+				sq_.fetch();
+				prescription_.clear();
+				for(auto row : sq_) prescription_.push_back(row["id"].asInt(), row["korean"].asString(),
+						row["process"].asString(), row["weight"].asFloat());
+			}
+	});
+
+}
+
+void Window2::load_date_table() 
+{
+	if(selected_[0] == -1) return;
+	sq_.select("prescription", "where patient = "  + to_string(selected_[0]));
+	date_.clear();
+	for(auto row : sq_) date_.push_back(sq_[0]["id"].asInt(), sq_[0]["date"].asInt());
+}
+
+void Window2::load_base_formular()
+{
+	sq_.reconnect();
+	sq_.select("formular", "order by korean");
+
+	auto ref_tree_model = Gtk::ListStore::create(column);
+	base_.set_model(ref_tree_model);
+	for(auto r : sq_) {
+		auto iter = ref_tree_model->append();
+		auto row = *iter;
+		row[column.id_] = r["id"].asInt();
+		row[column.name_] = r["korean"].asString();
+		base_formular_index_.push_back(row[column.id_]);
+	}
+	base_.pack_start(column.name_);
+	base_.set_active(0);
 }
 
 void Window2::load_patient_table()

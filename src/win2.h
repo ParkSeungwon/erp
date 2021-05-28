@@ -29,9 +29,17 @@ protected:
 	Gtk::CheckButton korean_{"한글"}, multiply_{"약재 분량 곱하기"};
 	SqlQuery sq_;
 
+	struct ModelColumns : Gtk::TreeModel::ColumnRecord {
+		ModelColumns() { add(id_); add(name_); }
+		Gtk::TreeModelColumn<int> id_;
+		Gtk::TreeModelColumn<Glib::ustring> name_;
+	} column;
+
 private:
 	int selected_[3] = {-1, -1, -1};//herb, recipe, formular
-	void set_properties(), load_herb_table(), connect_event(), load_patient_table();
+	void set_properties(), load_herb_table(), connect_event(), load_patient_table()
+		, load_date_table(), load_base_formular();
+	std::vector<int> base_formular_index_;
 };
 
 
