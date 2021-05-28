@@ -36,10 +36,14 @@ protected:
 	} column;
 
 private:
-	int selected_[3] = {-1, -1, -1};//herb, recipe, formular
+	int selected_[3] = {-1, -1, -1};//patient, date, herb
 	void set_properties(), load_herb_table(), connect_event(), load_patient_table()
-		, load_date_table(), load_base_formular();
+		, load_date_table(), load_base_formular(), load_prescription_table(),
+		load_prescription_other();
 	std::vector<int> base_formular_index_;
+	std::tuple<int, string, int, string> selected_patient_;
+	std::tuple<int, string, string, string, string> selected_herb_;
+	std::tuple<int, int> selected_date_;
 };
 
 

@@ -1,6 +1,16 @@
 #include"win2.h"
 using namespace std;
 
+string psstm(string command)
+{//return system call output as string
+	string s;
+	char tmp[1000];
+	FILE* f = popen(command.c_str(), "r");
+	while(fgets(tmp, sizeof(tmp), f)) s += tmp;
+	pclose(f);
+	return s;
+}
+
 Window2::Window2()
 {
 	set_title("처방전");
@@ -108,10 +118,23 @@ void Window2::connect_event()
 		sq_.select("patient", "limit 1");
 		sq_.insert(AutoIncrement{}, s[0], birthday, sex_.get_active() ? 1 : 0,//female 1
 				s[2], s[1], weight_.get_value(), height_.get_value());
+		load_patient_table();
+		selected_[0] = -1;
 	});
 	add2_.signal_clicked().connect([&]() {
+		if(selected_[0] == -1) return;
+		int date = stoi(psstm("date +%Y%m%d"));
 		sq_.select("prescription", "limit 1");
-		//sq_.insert();
+		sq_.insert(AutoIncrement{}, date, selected_[0], "", 12, 0);
+		load_date_table();
+		selected_[1] = -1;
+	});
+	del2_.signal_clicked().connect([&]() {
+		if(selected_[1] == -1) return;
+		sq_.query("delete from prescription where id = " + to_string(selected_[1]) + ';');
+		date_.remove_selected_row();
+		load_prescription_other();
+		load_prescription_table();
 	});
 	patient_.add_event([&]() {
 			auto v = patient_.get_selected();
@@ -119,8 +142,8 @@ void Window2::connect_event()
 				selected_[0] = -1;
 				return;
 			}
-			auto tup = patient_.get_row(v[0]);
-			int id = get<0>(tup);
+			selected_patient_ = patient_.get_row(v[0]);
+			int id = get<0>(selected_patient_);
 			selected_[0] = id;
 			sq_.reconnect();
 			sq_.select("patient", "where id = " + to_string(id));
@@ -137,8 +160,9 @@ void Window2::connect_event()
 			weight_.set_value(sq_[0]["weight"].asInt());
 			height_.set_value(sq_[0]["height"].asInt());
 
-			sq_.select("prescription", "where patient = " + to_string(id) + " order by date");
-			for(auto row : sq_) date_.push_back(sq_[0]["id"].asInt(), sq_[0]["date"].asInt());
+			load_date_table();
+			load_prescription_other();
+			load_prescription_table();
 	});
 	date_.add_event([&]() {
 			auto v = date_.get_selected();
@@ -146,15 +170,20 @@ void Window2::connect_event()
 				selected_[1] = -1;
 				return;
 			}
-			auto tup = date_.get_row(v[0]);
-			int id = get<0>(tup);
+			selected_date_ = date_.get_row(v[0]);
+			int id = get<0>(selected_date_);
 			selected_[1] = id;
-			sq_.select("prescription", "where id = " + to_string(id));
-			symptom_.get_buffer()->set_text(sq_[0]["symptom"].asString());
-			dose_.set_value(sq_[0]["dose"].asInt());
-			auto it = std::find(base_formular_index_.begin(), base_formular_index_.end(), 
-					sq_[0]["base_formula"].asInt());
-			base_.set_active(it - base_formular_index_.begin());
+			load_prescription_other();
+			load_prescription_table();
+	});
+	herb_.add_event([&]() {
+			auto v = herb_.get_selected();
+			if(v.empty()) {
+				selected_[2] = -1;
+				return;
+			}
+			selected_herb_ = herb_.get_row(v[0]);
+			selected_[2] = get<0>(selected_herb_);
 	});
 	base_.signal_changed().connect([&]() {
 			if(auto it = base_.get_active(); it) {
@@ -169,15 +198,62 @@ void Window2::connect_event()
 						row["process"].asString(), row["weight"].asFloat());
 			}
 	});
+	save_.signal_clicked().connect([&]() {
+			if(selected_[1] == -1) return;
+			string symp = symptom_.get_buffer()->get_text();
+			int form = base_formular_index_[base_.get_active_row_number()];
+			sq_.reconnect();
+			sq_.query("update prescription set symptom = '" + symp + "', base_formular = "
+					+ to_string(form) + ", dose = " + to_string(dose_.get_value())
+					+ " where id = " + to_string(selected_[1]) + ';');//update table syntax error 
 
+			sq_.query("delete from prescription_recipe where pres = " + to_string(selected_[1]) + ';');
+			sq_.select("prescription_recipe", "limit 1");
+			auto v = prescription_.get_nth_column<-1>();//column_.id_
+			for(int idx : v) {
+				auto tup = prescription_.get_row(idx);
+				sq_.insert(selected_[1], get<0>(tup), get<2>(tup), get<3>(tup));
+			}
+	});
+	right_.signal_clicked().connect([&]() {
+			prescription_.remove_selected_row();
+	});
+	left_.signal_clicked().connect([&]() {
+			cout << selected_[2] << endl;
+			if(selected_[2] == -1) return;
+			auto v = prescription_.get_nth_column<0>();
+			if(find(v.begin(), v.end(), selected_[2]) == v.end()) 
+				prescription_.push_back(selected_[2], get<1>(selected_herb_), "", 4);
+	});
+	print_.signal_clicked().connect([&]() {
+			string r, tmp;
+			auto v = prescription_.get_nth_column<0>();
+			auto idx = prescription_.get_nth_column<-1>();
+			for(int i=0; i<v.size(); i++) {
+				auto tup = prescription_.get_row(idx[i]);
+				if(!korean_.get_active()) {
+					sq_.select("herb", "where id = " + to_string(v[i]));
+					r += sq_[0]["chinese"].asString();
+				} else r += get<1>(tup);
+				r += ' ' + get<2>(tup) + ' ';
+				tmp = get<3>(tup);
+				float f = get<3>(tup) * (multiply_.get_active() ? dose_.get_value() : 1);
+				tmp = to_string(f);
+				while(tmp.back() == '0') tmp.pop_back();
+				if(tmp.back() == '.') tmp.pop_back();
+				r += tmp + "g\n";
+			}
+			if(!multiply_.get_active()) r += "\tX " +  to_string(dose_.get_value());
+			cout << r << endl;
+	});
 }
 
 void Window2::load_date_table() 
 {
+	date_.clear();
 	if(selected_[0] == -1) return;
 	sq_.select("prescription", "where patient = "  + to_string(selected_[0]));
-	date_.clear();
-	for(auto row : sq_) date_.push_back(sq_[0]["id"].asInt(), sq_[0]["date"].asInt());
+	for(auto row : sq_) date_.push_back(row["id"].asInt(), row["date"].asInt());
 }
 
 void Window2::load_base_formular()
@@ -195,7 +271,7 @@ void Window2::load_base_formular()
 		base_formular_index_.push_back(row[column.id_]);
 	}
 	base_.pack_start(column.name_);
-	base_.set_active(0);
+	base_.set_active(-1);
 }
 
 void Window2::load_patient_table()
@@ -208,4 +284,32 @@ void Window2::load_patient_table()
 		patient_.push_back(row["id"].asInt(), row["name"].asString(),
 			row["birth"].asInt(), row["tel"].asString());
 	}
+}
+
+void Window2::load_prescription_other()
+{
+	if(selected_[1] == -1) {
+		symptom_.get_buffer()->set_text("");
+		dose_.set_value(0);
+		base_.set_active(-1);
+		return;
+	}
+	sq_.select("prescription", "where id = " + to_string(selected_[1]));
+	symptom_.get_buffer()->set_text(sq_[0]["symptom"].asString());
+	dose_.set_value(sq_[0]["dose"].asInt());
+	for(int i=0; i<base_formular_index_.size(); i++) 
+		if(base_formular_index_[i] == sq_[0]["base_formular"].asInt())
+			base_.set_active(i);
+}
+
+void Window2::load_prescription_table()
+{
+	prescription_.clear();
+	if(selected_[1] == -1) return;
+	sq_.reconnect();
+	string q = "select * from (select * from prescription_recipe where pres = ";
+	sq_.query(q + to_string(selected_[1]) + ") as tmp inner join herb on tmp.herb = herb.id;");
+	sq_.fetch();
+	for(auto row : sq_) prescription_.push_back(row["id"].asInt(), row["korean"].asString(),
+			row["process"].asString(), row["weight"].asFloat());
 }
