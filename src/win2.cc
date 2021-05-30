@@ -64,7 +64,6 @@ void Window2::organize_widgets()
 	vb_[2].pack_start(hb_[8], Gtk::PACK_SHRINK);
 	vb_[2].pack_start(hb_[7], Gtk::PACK_SHRINK);
 	vb_[2].pack_start(hb_[3], Gtk::PACK_SHRINK);
-	hb_[3].pack_start(email_);
 	hb_[3].pack_start(print_);
 	hb_[7].pack_start(korean_);
 	hb_[7].pack_start(multiply_);
@@ -244,7 +243,6 @@ void Window2::connect_event()
 			prescription_.remove_selected_row();
 	});
 	left_.signal_clicked().connect([&]() {
-			cout << selected_[2] << endl;
 			if(selected_[2] == -1) return;
 			auto v = prescription_.get_nth_column<0>();
 			if(find(v.begin(), v.end(), selected_[2]) == v.end()) 
@@ -273,11 +271,22 @@ void Window2::connect_event()
 
 			Gtk::Dialog dia{"처방전", *this, true};
 			dia.add_button("Done", 1);
+			dia.add_button("email", 2);
 			popup_print_.get_buffer()->set_text(r);
 			dia.get_vbox()->pack_start(popup_print_);
 			dia.show_all_children();
-			dia.run();
-			cout << r << endl;
+			if(dia.run() == 2) cout << psstm(R"(ipython -c "# coding: utf-8
+import smtplib
+from email.message import EmailMessage
+msg = EmailMessage()
+msg.set_content(''')" + popup_print_.get_buffer()->get_text() + R"(''')
+msg['Subject'] = '처방전'
+msg['From'] = 'zeta@zeta2374.com'
+msg['To'] = 'z@zeta2374.com'
+s = smtplib.SMTP('localhost')
+s.send_message(msg)
+s.quit()
+")" );
 	});
 }
 
@@ -313,7 +322,6 @@ void Window2::load_patient_table()
 	sq_.select("patient");
 	patient_.clear();
 	for(auto row : sq_) {
-		cout << "date" << row["date"].asString() << endl;
 		patient_.push_back(row["id"].asInt(), row["name"].asString(),
 			row["birth"].asInt(), row["tel"].asString());
 	}

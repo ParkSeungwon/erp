@@ -11,7 +11,7 @@ public:
 protected:
 	Gtk::ScrolledWindow scroll_[3];
 	Gtk::Button add_{"추가"}, del_{"삭제"}, right_{"->"}, left_{"<-"}, 
-		add2_{"추가"}, del2_{"삭제"}, save_{"저장"}, print_{"프린트"}, email_{"이메일"};
+		add2_{"추가"}, del2_{"삭제"}, save_{"저장"}, print_{"프린트"};
 	Gtk::Separator separator_[2];//{Gtk::ORIENTATION_VERTICAL};
 	Gtk::HBox hb_[10];
 	Gtk::TextView symptom_, popup_print_;
