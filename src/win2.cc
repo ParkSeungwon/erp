@@ -1,3 +1,5 @@
+#include<sstream>
+#include<iomanip>
 #include"win2.h"
 using namespace std;
 
@@ -13,7 +15,18 @@ string psstm(string command)
 
 Window2::Window2()
 {
-	set_title("처방전");
+	sq_.connect("localhost", "zeta", "cockcodk0", "herb");
+	organize_widgets();
+	set_properties();
+	load_herb_table();
+	load_patient_table();
+	load_base_formular();
+	show_all_children();
+	connect_event();
+}
+
+void Window2::organize_widgets()
+{
 	add(hb_[0]);
 	for(int i=0; i<5; i++) {
 		hb_[0].pack_start(vb_[i]);
@@ -66,18 +79,11 @@ Window2::Window2()
 
 	vb_[4].pack_start(scroll_[0]);
 	scroll_[0].add(herb_);
-
-	sq_.connect("localhost", "zeta", "cockcodk0", "herb");
-	set_properties();
-	load_herb_table();
-	load_patient_table();
-	load_base_formular();
-	show_all_children();
-	connect_event();
 }
 
 void Window2::set_properties()
 {
+	set_title("처방전");
 	const char *p[] = {"이름", "전화번호", "주소"};
 	for(int i=0; i<3; i++) entry_[i].set_placeholder_text(p[i]);
 	patient_.set_size_request(-1, 700);
@@ -118,28 +124,49 @@ void Window2::connect_event()
 		sq_.select("patient", "limit 1");
 		sq_.insert(AutoIncrement{}, s[0], birthday, sex_.get_active() ? 1 : 0,//female 1
 				s[2], s[1], weight_.get_value(), height_.get_value());
-		load_patient_table();
-		selected_[0] = -1;
+		sq_.query("select last_insert_id();");
+		sq_.fetch();
+		int auto_incremented_value = sq_[0][""].asInt();
+		patient_.push_back(auto_incremented_value, s[0], birthday, s[1]);
 	});
 	add2_.signal_clicked().connect([&]() {
 		if(selected_[0] == -1) return;
 		int date = stoi(psstm("date +%Y%m%d"));
 		sq_.select("prescription", "limit 1");
 		sq_.insert(AutoIncrement{}, date, selected_[0], "", 12, 0);
+		sq_.query("select last_insert_id();");
+		sq_.fetch();
+		int auto_incremented_value = sq_[0][""].asInt();
+		date_.push_back(auto_incremented_value, date);
+	});
+	del_.signal_clicked().connect([&]() {
+		if(selected_[0] == -1) return;
+		Gtk::MessageDialog dia{"Are you sure?"};
+		dia.add_button("Cancel", 0);
+		if(!dia.run()) return;
+		sq_.query("delete from patient where id = " + to_string(selected_[0]) + ';');
+		patient_.remove_selected_row();
 		load_date_table();
-		selected_[1] = -1;
+		load_prescription_other();
+		load_prescription_table();
 	});
 	del2_.signal_clicked().connect([&]() {
 		if(selected_[1] == -1) return;
+		Gtk::MessageDialog dia{"Are you sure?"};
+		dia.add_button("Cancel", 0);
+		if(!dia.run()) return;
 		sq_.query("delete from prescription where id = " + to_string(selected_[1]) + ';');
 		date_.remove_selected_row();
 		load_prescription_other();
 		load_prescription_table();
 	});
 	patient_.add_event([&]() {
+			prescription_.clear();
+			clear_prescription_other();
 			auto v = patient_.get_selected();
 			if(v.empty()) {
 				selected_[0] = -1;
+				date_.clear();
 				return;
 			}
 			selected_patient_ = patient_.get_row(v[0]);
@@ -161,8 +188,6 @@ void Window2::connect_event()
 			height_.set_value(sq_[0]["height"].asInt());
 
 			load_date_table();
-			load_prescription_other();
-			load_prescription_table();
 	});
 	date_.add_event([&]() {
 			auto v = date_.get_selected();
@@ -226,24 +251,32 @@ void Window2::connect_event()
 				prescription_.push_back(selected_[2], get<1>(selected_herb_), "", 4);
 	});
 	print_.signal_clicked().connect([&]() {
-			string r, tmp;
+			string r;
+			r += get<1>(selected_patient_) + "\n\n";
 			auto v = prescription_.get_nth_column<0>();
 			auto idx = prescription_.get_nth_column<-1>();
+			int days = dose_.get_value();
 			for(int i=0; i<v.size(); i++) {
 				auto tup = prescription_.get_row(idx[i]);
 				if(!korean_.get_active()) {
 					sq_.select("herb", "where id = " + to_string(v[i]));
 					r += sq_[0]["chinese"].asString();
 				} else r += get<1>(tup);
-				r += ' ' + get<2>(tup) + ' ';
-				tmp = get<3>(tup);
-				float f = get<3>(tup) * (multiply_.get_active() ? dose_.get_value() : 1);
-				tmp = to_string(f);
-				while(tmp.back() == '0') tmp.pop_back();
-				if(tmp.back() == '.') tmp.pop_back();
-				r += tmp + "g\n";
+				r += ' ' + get<2>(tup) + '\t';
+				float dose = get<3>(tup) * (multiply_.get_active() ? days*2 : 1);
+				stringstream ss;
+				ss << setprecision(5) << dose;
+				r += ss.str() + "g\n";
 			}
-			if(!multiply_.get_active()) r += "\tX " +  to_string(dose_.get_value());
+			if(!multiply_.get_active()) r += "\tX " +  to_string(int{dose_.get_value()} * 2);
+			r += '\n' + to_string(days) + "일분 " + to_string(days * 3) + "봉";
+
+			Gtk::Dialog dia{"처방전", *this, true};
+			dia.add_button("Done", 1);
+			popup_print_.get_buffer()->set_text(r);
+			dia.get_vbox()->pack_start(popup_print_);
+			dia.show_all_children();
+			dia.run();
 			cout << r << endl;
 	});
 }
@@ -286,12 +319,17 @@ void Window2::load_patient_table()
 	}
 }
 
+void Window2::clear_prescription_other()
+{
+	symptom_.get_buffer()->set_text("");
+	dose_.set_value(0);
+	base_.set_active(-1);
+}
+
 void Window2::load_prescription_other()
 {
 	if(selected_[1] == -1) {
-		symptom_.get_buffer()->set_text("");
-		dose_.set_value(0);
-		base_.set_active(-1);
+		clear_prescription_other();
 		return;
 	}
 	sq_.select("prescription", "where id = " + to_string(selected_[1]));
